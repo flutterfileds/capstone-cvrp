@@ -12,7 +12,7 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to  CVRP Solver API!"}\
+    return {"message": "Welcome to  CVRP Solver 09 API!"}\
     
 @app.get("/health")
 async def health_check():
