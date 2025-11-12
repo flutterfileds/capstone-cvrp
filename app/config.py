@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     EMISSION_FACTOR: float = 0.27  # example kg CO2 per km
 
-    TRUCK_CAPACITY: int = 60
+    TRUCK_CAPACITY: int = 120
     
     model_config = SettingsConfigDict(
         env_file=".env",
