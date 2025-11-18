@@ -3,18 +3,42 @@ import time
 from typing import List, Dict, Tuple
 
 from app.config import settings
+from .nn_solver import NNSolver
 from app.utils.metrics_calc import calculate_route_metrics
 
 
 class GASolver:
     
-    def __init__(self, bins, distance_matrix):
+    def __init__(self, bins, distance_matrix, adaptive=True):
         self.bins = bins
         self.distance_matrix = distance_matrix
         self.truck_capacity = settings.TRUCK_CAPACITY
+
+        # Adaptive parameters
+        n_bins = len([b for b in bins if b["id"] != "depot"])
         
-        self.population_size = settings.POPULATION_SIZE
-        self.num_generations = settings.NUM_GENERATIONS
+        if adaptive and n_bins > 0:
+            # pop size
+            if n_bins > 100:
+                self.population_size = 50
+            elif n_bins > 50:
+                self.population_size = 80
+            else:
+                self.population_size = min(100, n_bins * 2)
+
+            # gens
+            if n_bins > 100:
+                self.num_generations = 150
+            elif n_bins > 50:
+                self.num_generations = 250
+            else:
+                self.num_generations = settings.NUM_GENERATIONS
+
+            print(f"🧬 Adaptive mode: Pop={self.population_size}, Gen={self.num_generations} for {n_bins} bins")
+        else:
+            self.population_size = settings.POPULATION_SIZE
+            self.num_generations = settings.NUM_GENERATIONS
+
         self.tournament_size = settings.TOURNAMENT_SIZE
         self.crossover_rate = settings.CROSSOVER_RATE
         self.mutation_rate = settings.MUTATION_RATE
@@ -118,10 +142,59 @@ class GASolver:
     def _initialize_population(self):
         """Create initial population"""
         population = []
-        for _ in range(self.population_size):
+
+        try:
+            nn_chromosome = self._create_nn_seed()
+            population.append(nn_chromosome)
+            print(f"✓ NN seed created: {len(nn_chromosome)} bins")
+        except Exception as e:
+            print(f"⚠️  NN seeding failed: {e}. Using full random initialization.")
+        
+        if len(population) > 0:
+            num_variants = max(1, int(self.population_size * 0.1))
+            for _ in range(num_variants):
+                variant = population[0].copy()
+                # Apply light mutation: swap 30% of positions
+                for _ in range(int(len(variant) * 0.3)):
+                    i, j = random.sample(range(len(variant)), 2)
+                    variant[i], variant[j] = variant[j], variant[i]
+                population.append(variant)
+        
+        while len(population) < self.population_size:
             individual = random.sample(self.bin_ids, len(self.bin_ids))
             population.append(individual)
-        return population     
+        
+        return population
+
+    def _create_nn_seed(self):
+        """
+        Create initial chromosome from NN solution
+        Converts NN route format to GA chromosome format
+        """
+        # Initialize your existing NN solver
+        nn_solver = NNSolver(
+            bins=self.bins,
+            distance_matrix=self.distance_matrix
+        )
+        
+        # Get NN solution
+        nn_result = nn_solver.solve()
+        
+        chromosome = []
+        
+        for route in nn_result['best_routes']:
+            for stop in route:
+                if stop != 'depot':
+                    chromosome.append(stop)
+        
+        missing = set(self.bin_ids) - set(chromosome)
+        if missing:
+            print(f"⚠ Missing bins from NN seed: {missing}")
+            chromosome.extend(list(missing))
+        
+        chromosome = list(dict.fromkeys(chromosome))
+        
+        return chromosome
 
     def _decode_routes(self, chromosome):
         """ Decode a chromosome into feasible CVRP routes."""
