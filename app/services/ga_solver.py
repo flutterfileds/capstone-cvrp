@@ -20,7 +20,7 @@ class GASolver:
         if adaptive and n_bins > 0:
             # pop size
             if n_bins > 100:
-                self.population_size = 50
+                self.population_size = 120
             elif n_bins > 50:
                 self.population_size = 80
             else:
@@ -150,16 +150,24 @@ class GASolver:
         except Exception as e:
             print(f"⚠️  NN seeding failed: {e}. Using full random initialization.")
         
-        if len(population) > 0:
-            num_variants = max(1, int(self.population_size * 0.1))
-            for _ in range(num_variants):
-                variant = population[0].copy()
-                # Apply light mutation: swap 30% of positions
-                for _ in range(int(len(variant) * 0.3)):
-                    i, j = random.sample(range(len(variant)), 2)
-                    variant[i], variant[j] = variant[j], variant[i]
+        if nn_chromosome is not None:
+            num_variants = int(self.population_size * 0.5)
+            
+            for i in range(num_variants):
+                variant = nn_chromosome.copy()
+                
+                # Progressive mutation intensity: 5% to 20%
+                mutation_intensity = 0.05 + (0.15 * i / num_variants)
+                num_swaps = max(1, int(len(variant) * mutation_intensity))
+                
+                # Apply multiple swaps
+                for _ in range(num_swaps):
+                    i_pos, j_pos = random.sample(range(len(variant)), 2)
+                    variant[i_pos], variant[j_pos] = variant[j_pos], variant[i_pos]
+                
                 population.append(variant)
         
+        # Fill remaining with random solutions
         while len(population) < self.population_size:
             individual = random.sample(self.bin_ids, len(self.bin_ids))
             population.append(individual)
@@ -221,6 +229,7 @@ class GASolver:
     def _calculate_fitness(self, routes):
         total_distance = 0
         total_unused = 0
+        num_routes = len(routes)
 
         for route in routes:
             if not route:
@@ -234,11 +243,17 @@ class GASolver:
                 route_distance += self.distance_matrix[from_id][to_id]
             total_distance += route_distance
                 
-            route_load = sum(self.demand_dict[b] for b in route)
+            route_load = sum(
+                self.demand_dict[bin_id]
+                for bin_id in route
+                if bin_id != 'depot'
+            )
             unused = max(self.truck_capacity - route_load, 0)
             total_unused += unused
 
-        fitness = self.w1 * total_distance + self.w2 * total_unused
+        fitness = (self.w1 * total_distance + 
+               self.w2 * total_unused + 
+               1000 * num_routes)
         return fitness
 
     def _evaluate_population(self, population):
@@ -312,8 +327,11 @@ class GASolver:
         mutated = individual.copy()
 
         if random.random() < self.mutation_rate:
-            idx1, idx2 = random.sample(range(len(mutated)), 2)
-            mutated[idx1], mutated[idx2] = mutated[idx2], mutated[idx1]
+            num_swaps = random.randint(3, 5)
+            
+            for _ in range(num_swaps):
+                idx1, idx2 = random.sample(range(len(mutated)), 2)
+                mutated[idx1], mutated[idx2] = mutated[idx2], mutated[idx1]
         
         return mutated
     
@@ -332,5 +350,3 @@ class GASolver:
             new_population[worst_idx] = old_population[elite_idx].copy()
         
         return new_population
-
-    
