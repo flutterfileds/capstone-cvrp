@@ -12,7 +12,7 @@ class NNSolver:
         self.emission_factor = settings.EMISSION_FACTOR
 
         self.depot_id = bins[0]['id']
-        self.depot_index = 0
+        self.depot_index = 0 #depot
 
         self.bin_ids = [bin_data['id'] for bin_data in bins[1:]]
         self.id_to_index = {b["id"]: i for i, b in enumerate(bins)}
