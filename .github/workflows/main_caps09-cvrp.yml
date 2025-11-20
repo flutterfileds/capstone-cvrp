@@ -48,29 +48,35 @@ jobs:
       
 
   deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+  runs-on: ubuntu-latest
+  needs: build
+  permissions:
+    id-token: write
+    contents: read
 
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
+  steps:
+    - name: Download artifact from build job
+      uses: actions/download-artifact@v4
+      with:
+        name: python-app
+    
+    - name: Login to Azure
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_28D5D3FF08A3455EB3CC47AB001F0381 }}
+        tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DED692651F014F29A26A93FBC8BAC072 }}
+        subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4C1560BEB79C474BBE66B05BD8BC0504 }}
+
+    - name: 'Deploy to Azure Web App'
+      uses: azure/webapps-deploy@v3
+      id: deploy-to-webapp
+      with:
+        app-name: 'caps09-cvrp'
+        slot-name: 'Production'
+
+    - name: Restart Azure Web App
+      run: |
+        az webapp restart \
+          --name caps09-cvrp \
+          --resource-group capstone-09
       
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_28D5D3FF08A3455EB3CC47AB001F0381 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DED692651F014F29A26A93FBC8BAC072 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4C1560BEB79C474BBE66B05BD8BC0504 }}
-
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
-          app-name: 'caps09-cvrp'
-          slot-name: 'Production'
-          
